@@ -37,6 +37,8 @@ S1 - leak the Canary
 S2 - leak libc
 S3 - ret2libc for shell
 
+Once shell is gained, cd to /, and cat flag.txt
+
 Brickwalls:
 It's tricky getting the code to send the payload at the right prompt of Bet: so that
 has to be accurate in code for execution.
